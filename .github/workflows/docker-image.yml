@@ -37,4 +37,3 @@ jobs:  # workflow中的job
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          dockerfile: /build/Dockerfile
