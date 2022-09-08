@@ -1,38 +1,40 @@
-FROM alpine:edge
-MAINTAINER Wolfgang Klinger <wolfgang@wazum.com>
+ARG ALPINE_VERSION=latest
 
-RUN apk add --no-cache libcrypto1.1 libssl1.1 libstdc++ --repository http://dl-cdn.alpinelinux.org/alpine/edge/main
-RUN apk add --no-cache oath-toolkit-libpskc --repository http://dl-cdn.alpinelinux.org/alpine/edge/community
-RUN apk add --no-cache nettle --repository http://dl-cdn.alpinelinux.org/alpine/edge/main
-# openconnect is not yet available on main
-RUN apk add --no-cache openconnect tinyproxy --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing
+# Set gost vars
+ARG GOST_FILE=gost-linux-amd64-2.11.4
+ARG GOST_URL=https://github.com/ginuerzh/gost/releases/download/v2.11.4/${GOST_FILE}.gz
+# Build gost
+FROM alpine:${ALPINE_VERSION} as builder
 
-RUN apk add --no-cache ca-certificates wget \
-    && wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub \
-    && wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.30-r0/glibc-2.30-r0.apk \
-    && apk add --no-cache --virtual .build-deps glibc-2.30-r0.apk gcc make musl-dev \
-    && cd /tmp \
-    && wget https://github.com/rofl0r/microsocks/archive/v1.0.1.tar.gz \
-    && tar -xzvf v1.0.1.tar.gz \
-    && cd microsocks-1.0.1 \
-    && make \
-    && make install \
-    # add vpn-slice with dependencies (dig) https://github.com/dlenski/vpn-slice
-    && apk add --no-cache python3 bind-tools curl && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py && pip3 install --upgrade pip \
-    && pip3 install https://github.com/dlenski/vpn-slice/archive/master.zip \
-    && apk del .build-deps wget
+ARG GOST_URL
+ARG GOST_FILE
 
-# Use an up-to-date version of vpnc-script
-# https://www.infradead.org/openconnect/vpnc-script.html
-COPY vpnc-script /etc/vpnc/vpnc-script
-RUN chmod 755 /etc/vpnc/vpnc-script
+ENV GOST_URL=${GOST_URL}\
+    GOST_FILE=${GOST_FILE}
 
-COPY tinyproxy.conf /etc/tinyproxy.conf
+# Change working dir.
+WORKDIR /tmp
+
+# Add gost repo archive
+RUN apk add --no-cache \
+    wget \
+    gzip && \
+    wget ${GOST_URL} && \
+    gzip -d ${GOST_FILE}.gz && \
+    mv ${GOST_FILE} gost && \
+    chmod +x gost
+
+FROM alpine:${ALPINE_VERSION}
+
+COPY --from=builder /tmp/gost /usr/local/bin/gost
+
+RUN apk add --no-cache \
+    openconnect
 
 COPY entrypoint.sh /entrypoint.sh
+
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8888
-EXPOSE 8889
+EXPOSE 8888 8889
 
 ENTRYPOINT ["/entrypoint.sh"]
