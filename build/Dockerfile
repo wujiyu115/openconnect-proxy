@@ -15,8 +15,8 @@ RUN apk add --no-cache \
     jq \
     gzip && \
     GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") \
-    GOST_FILE=${GOST_URL##*/} \ 
-    GOST_FILE_NO_EXT=${GOST_FILE%.*} \
+    GOST_FILE=${GOST_URL##*/} &&\ 
+    GOST_FILE_NO_EXT=${GOST_FILE%.*} &&\
     wget ${GOST_URL} && \
     gzip -d ${GOST_FILE} && \
     mv ${GOST_FILE_NO_EXT} gost && \
