@@ -7,6 +7,8 @@ on:   # 配置触发workflow的事件
       - 'master'
     tags:       # tag更新时触发此workflow
       - '*'
+env:
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:  # workflow中的job
 
@@ -28,7 +30,7 @@ jobs:  # workflow中的job
         id: meta
         uses: docker/metadata-action@v3  # 抽取项目信息，主要是镜像的tag
         with:
-          images: wujiyu115/openconnect-proxy
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v2 # docker build & push
