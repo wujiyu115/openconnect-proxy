@@ -1,27 +1,25 @@
 ARG ALPINE_VERSION=latest
 
 # Set gost vars
-ARG GOST_FILE=gost-linux-amd64-2.11.4
-ARG GOST_URL=https://github.com/ginuerzh/gost/releases/download/v2.11.4/${GOST_FILE}.gz
 # Build gost
 FROM alpine:${ALPINE_VERSION} as builder
 
-ARG GOST_URL
-ARG GOST_FILE
-
-ENV GOST_URL=${GOST_URL}\
-    GOST_FILE=${GOST_FILE}
-
+ENV SPRUCE_TYPE=linux-amd64
 # Change working dir.
 WORKDIR /tmp
 
 # Add gost repo archive
 RUN apk add --no-cache \
     wget \
+    curl \
+    jq \
     gzip && \
+    GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") \
+    GOST_FILE=${GOST_URL##*/} \ 
+    GOST_FILE_NO_EXT=${GOST_FILE%.*} \
     wget ${GOST_URL} && \
-    gzip -d ${GOST_FILE}.gz && \
-    mv ${GOST_FILE} gost && \
+    gzip -d ${GOST_FILE} && \
+    mv ${GOST_FILE_NO_EXT} gost && \
     chmod +x gost
 
 FROM alpine:${ALPINE_VERSION}
