@@ -133,5 +133,3 @@ You can build the container yourself with
 
 	docker build -f build/Dockerfile -t wujiyu115/openconnect-proxy:custom ./build
 
-
-
