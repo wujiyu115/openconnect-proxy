@@ -12,8 +12,9 @@ WORKDIR /tmp
 RUN apk add --no-cache \
     wget \
     curl \
-    jq \
-    GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") \
+    jq
+    
+RUN GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") \
     GOST_FILE=${GOST_URL##*/} &&\ 
     wget ${GOST_URL} && \
     tar -zxvf ${GOST_FILE} && \
