@@ -1,7 +1,7 @@
 # Set gost vars
 # Build gost
 FROM debian:buster-slim as builder
-ENV SPRUCE_TYPE=linux_amd64
+ENV SPRUCE_TYPE=linux_amd64.tar
 # Change working dir.
 WORKDIR /tmp
 # Add required packages for building
