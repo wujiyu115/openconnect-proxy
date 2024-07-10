@@ -27,6 +27,7 @@ COPY --from=builder /usr/local/bin/gost /usr/local/bin/gost
 # Install required packages
 RUN apt-get update && \    
     apt-get install -y --no-install-recommends \
+    ca-certificates \
     procps \
     wget \
     curl \
