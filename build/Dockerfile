@@ -13,7 +13,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Get the latest gost release URL and download the tar file
-RUN GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases | jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") && \
+RUN GOST_URL=$(curl -kfsSL https://api.github.com/repos/go-gost/gost/releases | jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") && \
     GOST_FILE=$(basename "${GOST_URL}") && \
     wget "${GOST_URL}" && \
     tar -zxvf "${GOST_FILE}" && \
