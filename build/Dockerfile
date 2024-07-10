@@ -27,14 +27,18 @@ COPY --from=builder /usr/local/bin/gost /usr/local/bin/gost
 # Install required packages
 RUN apt-get update && \    
     apt-get install -y --no-install-recommends \
-    openconnect \
+    procps \
     wget \
     curl \
+    telnet \
+    net-tools \
+    openconnect \
+    ocproxy \
     && rm -rf /var/lib/apt/lists/*
 # Copy entrypoint script and set permissions
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 # Expose ports for gost and openconnect
-EXPOSE 8888 8889
+EXPOSE 8988
 # Set entrypoint
 ENTRYPOINT ["/entrypoint.sh"]

@@ -1,5 +1,5 @@
 #!/bin/sh
-/usr/local/bin/gost -L=http://:8888 -L=sock5://:8889 & 
+/usr/local/bin/gost -L=http://:8988 & 
 
 run () {
   # Start openconnect
