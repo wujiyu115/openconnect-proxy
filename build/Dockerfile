@@ -1,8 +1,6 @@
-ARG ALPINE_VERSION=latest
-
 # Set gost vars
 # Build gost
-FROM alpine:${ALPINE_VERSION} as builder
+FROM debian:buster-slim as builder
 
 ENV SPRUCE_TYPE=linux_amd64v3
 # Change working dir.
@@ -20,12 +18,14 @@ RUN GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq
     tar -zxvf ${GOST_FILE} && \
     chmod +x gost
 
-FROM alpine:${ALPINE_VERSION}
+FROM debian:buster-slim
 
 COPY --from=builder /tmp/gost /usr/local/bin/gost
 
 RUN apk add --no-cache \
-    openconnect
+    openconnect \
+    wget \
+    curl 
 
 COPY entrypoint.sh /entrypoint.sh
 
