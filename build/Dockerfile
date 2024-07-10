@@ -7,10 +7,13 @@ ENV SPRUCE_TYPE=linux_amd64v3
 WORKDIR /tmp
 
 # Add gost repo archive
-RUN apk add --no-cache \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     wget \
     curl \
-    jq
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+    
     
 RUN GOST_URL=$(curl -fsSL https://api.github.com/repos/go-gost/gost/releases |jq -r "first(.[]) | .assets[] | select(.name | test(\"${SPRUCE_TYPE}\")) | .browser_download_url") \
     GOST_FILE=${GOST_URL##*/} &&\ 
@@ -22,7 +25,8 @@ FROM debian:buster-slim
 
 COPY --from=builder /tmp/gost /usr/local/bin/gost
 
-RUN apk add --no-cache \
+RUN apt-get update && \    
+    apt-get install -y --no-install-recommends \
     openconnect \
     wget \
     curl 
