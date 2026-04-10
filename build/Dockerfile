@@ -1,6 +1,6 @@
 # Set gost vars
 # Build gost
-FROM debian:buster-slim as builder
+FROM debian:bookworm-slim AS builder
 ENV SPRUCE_TYPE=linux_amd64.tar
 # Change working dir.
 WORKDIR /tmp
@@ -21,7 +21,7 @@ RUN GOST_URL=$(curl -kfsSL https://api.github.com/repos/go-gost/gost/releases | 
     chmod +x gost && \
     mv gost /usr/local/bin/gost
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 # Copy the gost binary from the builder stage
 COPY --from=builder /usr/local/bin/gost /usr/local/bin/gost
 # Install required packages
