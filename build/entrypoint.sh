@@ -3,53 +3,62 @@
 # Start gost proxy
 /usr/local/bin/gost -L=http://:8988 &
 
-# Save pre-VPN routing info: full route table + default gateway + interface
-route -n | awk 'NR>2 {print $1, $2, $3, $8}' > /tmp/saved_routes
-DEFAULT_GW=$(route -n | awk '/^0\.0\.0\.0/{print $2; exit}')
-DEFAULT_IF=$(route -n | awk '/^0\.0\.0\.0/{print $8; exit}')
+# Save pre-VPN routing info
+DEFAULT_GW=$(ip route | awk '/^default/{print $3; exit}')
+DEFAULT_IF=$(ip route | awk '/^default/{print $5; exit}')
 echo "$DEFAULT_GW" > /tmp/saved_gateway
 echo "$DEFAULT_IF" > /tmp/saved_iface
+# Save all non-default routes
+ip route | grep -v "^default" > /tmp/saved_routes
 echo "Pre-VPN default gateway: ${DEFAULT_GW} via ${DEFAULT_IF}"
-echo "Pre-VPN routing table:"
+echo "Pre-VPN routes:"
 cat /tmp/saved_routes
 
-# Create a vpnc-script wrapper that dynamically restores routes after VPN connects
+# Create a vpnc-script wrapper that uses policy routing to fix Docker port forwarding
 cat > /tmp/vpnc-script-wrapper.sh << 'SCRIPT_EOF'
 #!/bin/sh
 
 # Run the default vpnc-script first
 /usr/share/vpnc-scripts/vpnc-script "$@"
 
-# After VPN connects, restore original routes so Docker port forwarding works
+# After VPN connects, set up policy routing so that packets arriving on eth0
+# (from Docker port forwarding) are replied via eth0, not the VPN tunnel
 if [ "$reason" = "connect" ]; then
   DEFAULT_GW=$(cat /tmp/saved_gateway 2>/dev/null)
   DEFAULT_IF=$(cat /tmp/saved_iface 2>/dev/null)
-  echo "Restoring pre-VPN routes (gateway: ${DEFAULT_GW}, iface: ${DEFAULT_IF})..."
+  echo "Setting up policy routing (gateway: ${DEFAULT_GW}, iface: ${DEFAULT_IF})..."
 
-  # 1. Restore all saved non-default routes
-  while read -r dest gw mask iface; do
-    [ -z "$dest" ] && continue
-    [ "$dest" = "0.0.0.0" ] && continue
-    if [ "$gw" = "0.0.0.0" ]; then
-      route add -net "$dest" netmask "$mask" dev "$iface" 2>/dev/null || true
-    else
-      route add -net "$dest" netmask "$mask" gw "$gw" dev "$iface" 2>/dev/null || true
-    fi
-    echo "  Restored: $dest/$mask via $gw dev $iface"
+  # 1. Restore all saved non-default routes on eth0
+  while IFS= read -r route_line; do
+    [ -z "$route_line" ] && continue
+    ip route add $route_line 2>/dev/null || true
+    echo "  Restored: $route_line"
   done < /tmp/saved_routes
 
-  # 2. Add route for the Docker host's subnet via original gateway
-  #    This ensures reply packets to the host (e.g. 192.168.31.139) go back
-  #    through eth0 instead of the VPN tunnel
+  # 2. Set up a separate routing table (table 100) with the original default gateway
+  #    This table routes everything via Docker's eth0 gateway
   if [ -n "$DEFAULT_GW" ] && [ -n "$DEFAULT_IF" ]; then
-    # Detect the host's subnet from the gateway IP (assume /16 for broad coverage)
-    HOST_SUBNET=$(echo "$DEFAULT_GW" | awk -F. '{print $1"."$2".0.0"}')
-    route add -net "$HOST_SUBNET" netmask 255.255.0.0 gw "$DEFAULT_GW" dev "$DEFAULT_IF" 2>/dev/null || true
-    echo "  Added host subnet route: ${HOST_SUBNET}/255.255.0.0 via ${DEFAULT_GW} dev ${DEFAULT_IF}"
+    ip route add default via "$DEFAULT_GW" dev "$DEFAULT_IF" table 100 2>/dev/null || true
+
+    # 3. Use ip rule to mark packets that should use table 100:
+    #    Any packet coming IN on eth0 (from Docker port forwarding / host access)
+    #    should have its reply routed via table 100 (back through eth0)
+    ip rule add from all lookup 100 pref 100 2>/dev/null || true
+
+    # Get the container's eth0 IP and use it for source-based routing
+    CONTAINER_IP=$(ip addr show "$DEFAULT_IF" | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+    if [ -n "$CONTAINER_IP" ]; then
+      # Delete the broad rule and add a specific source-based rule instead
+      ip rule del from all lookup 100 pref 100 2>/dev/null || true
+      ip rule add from "$CONTAINER_IP" lookup 100 pref 100 2>/dev/null || true
+      echo "  Policy route: packets from ${CONTAINER_IP} use table 100 (via ${DEFAULT_GW} dev ${DEFAULT_IF})"
+    fi
   fi
 
-  echo "Route restoration complete. Current routing table:"
-  route -n
+  echo "Route setup complete. Current routing table:"
+  ip route
+  echo "Policy rules:"
+  ip rule
 fi
 SCRIPT_EOF
 chmod +x /tmp/vpnc-script-wrapper.sh

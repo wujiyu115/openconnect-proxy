@@ -34,6 +34,7 @@ RUN apt-get update && \
     curl \
     telnet \
     net-tools \
+    iproute2 \
     openconnect \
     ocproxy \
     && rm -rf /var/lib/apt/lists/*
