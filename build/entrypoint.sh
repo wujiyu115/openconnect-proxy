@@ -3,35 +3,38 @@
 # Start gost proxy
 /usr/local/bin/gost -L=http://:8988 &
 
-# Save the default gateway before VPN overwrites routing table
-DEFAULT_GW=$(route -n | awk '/^0\.0\.0\.0/{print $2; exit}')
-echo "Default gateway before VPN: ${DEFAULT_GW}"
+# Save the full routing table snapshot before VPN overwrites it
+route -n | awk 'NR>2 {print $1, $2, $3, $8}' > /tmp/saved_routes
+echo "Saved routing table before VPN:"
+cat /tmp/saved_routes
 
-# Create a vpnc-script wrapper that restores routes for Docker network after VPN connects
+# Create a vpnc-script wrapper that dynamically restores pre-VPN routes
 cat > /tmp/vpnc-script-wrapper.sh << 'SCRIPT_EOF'
 #!/bin/sh
 
 # Run the default vpnc-script first
 /usr/share/vpnc-scripts/vpnc-script "$@"
 
-# After VPN connects, add route back for Docker bridge network
+# After VPN connects, restore all original routes that were overwritten
 if [ "$reason" = "connect" ]; then
-  # Read saved gateway
-  DEFAULT_GW=$(cat /tmp/saved_gateway 2>/dev/null)
-  if [ -n "$DEFAULT_GW" ]; then
-    echo "Restoring Docker network routes via gateway ${DEFAULT_GW}"
-    # Route Docker bridge network (172.17.0.0/16) through original gateway
-    route add -net 172.17.0.0 netmask 255.255.0.0 gw "$DEFAULT_GW" 2>/dev/null || true
-    # Route common LAN subnets through original gateway so host can reach container
-    route add -net 192.168.0.0 netmask 255.255.0.0 gw "$DEFAULT_GW" 2>/dev/null || true
-    route add -net 10.0.0.0 netmask 255.0.0.0 gw "$DEFAULT_GW" 2>/dev/null || true
-  fi
+  echo "Restoring pre-VPN routes..."
+  while read -r dest gw mask iface; do
+    # Skip empty lines
+    [ -z "$dest" ] && continue
+    # Skip the default route (0.0.0.0) — let VPN handle that
+    [ "$dest" = "0.0.0.0" ] && continue
+    # Re-add each saved route via its original gateway and interface
+    if [ "$gw" = "0.0.0.0" ]; then
+      route add -net "$dest" netmask "$mask" dev "$iface" 2>/dev/null || true
+    else
+      route add -net "$dest" netmask "$mask" gw "$gw" dev "$iface" 2>/dev/null || true
+    fi
+    echo "  Restored route: $dest/$mask via $gw dev $iface"
+  done < /tmp/saved_routes
+  echo "Route restoration complete."
 fi
 SCRIPT_EOF
 chmod +x /tmp/vpnc-script-wrapper.sh
-
-# Save gateway for the wrapper script to use
-echo "$DEFAULT_GW" > /tmp/saved_gateway
 
 run () {
   # Start openconnect with custom vpnc-script wrapper
