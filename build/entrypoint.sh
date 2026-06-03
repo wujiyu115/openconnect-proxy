@@ -4,7 +4,7 @@
 if grep -q bbr /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null; then
   echo "BBR congestion control is active"
 elif grep -q bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
-  echo "WARNING: BBR available but not enabled. Add to docker run: --sysctl net.core.default_qdisc=fq --sysctl net.ipv4.tcp_congestion_control=bbr"
+  echo "WARNING: BBR available but not enabled. Add to docker run: --sysctl net.ipv4.tcp_congestion_control=bbr (and set net.core.default_qdisc=fq on host)"
 else
   echo "BBR not available on host kernel (modprobe tcp_bbr on host first)"
 fi
