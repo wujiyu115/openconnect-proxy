@@ -1,5 +1,14 @@
 #!/bin/sh
 
+# Check BBR congestion control status
+if grep -q bbr /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null; then
+  echo "BBR congestion control is active"
+elif grep -q bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
+  echo "WARNING: BBR available but not enabled. Add to docker run: --sysctl net.core.default_qdisc=fq --sysctl net.ipv4.tcp_congestion_control=bbr"
+else
+  echo "BBR not available on host kernel (modprobe tcp_bbr on host first)"
+fi
+
 # Start gost proxy
 /usr/local/bin/gost -L=http://:8988 &
 
