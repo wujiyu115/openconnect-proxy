@@ -127,6 +127,31 @@ An alternative is _corkscrew_ (e.g. install with `brew install corkscrew` on mac
 	Host <hostname>
 		ProxyCommand            corkscrew 127.0.0.1 8888 %h %p
 
+# Merge the entry proxy into this container (default)
+
+The container already runs gost next to openconnect, so a separate gost entry
+container is not needed. gost started inside this container shares the VPN
+network namespace, so its outbound traffic follows the VPN default route - no
+`-F` forwarder is required.
+
+Listeners are configured with `GOST_LISTENERS` (space separated, gost v3 syntax).
+The default only exposes the internal HTTP proxy on 8988:
+
+	-e GOST_LISTENERS="-L=http://:8988"
+
+To replace a standalone gost entry container (HTTP proxy + shadowsocks + internal
+proxy), pass all listeners and publish the matching ports:
+
+	docker run -d --privileged \
+	  --sysctl net.ipv4.tcp_congestion_control=bbr \
+	  --env-file .env \
+	  -e GOST_LISTENERS="-L=:8887 -L=ss://chacha20-ietf-poly1305:PASSWORD@:8443 -L=http://:8988" \
+	  -p 8887:8887 -p 8888:8443 -p 8988:8988 \
+	  wujiyu115/openconnect-proxy:latest
+
+gost is only started after the tunnel (`tun0`) is up, so no traffic can leak
+out directly while openconnect is still connecting.
+
 # Build
 
 You can build the container yourself with

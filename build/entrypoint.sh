@@ -9,8 +9,14 @@ else
   echo "BBR not available on host kernel (modprobe tcp_bbr on host first)"
 fi
 
-# Start gost proxy
-/usr/local/bin/gost -L=http://:8988 &
+# gost listeners.
+# Default keeps the original single internal HTTP proxy on 8988.
+# To merge a standalone gost entry container into this one, pass the listeners
+# through the environment, e.g.
+#   -e GOST_LISTENERS="-L=:8887 -L=ss://chacha20-ietf-poly1305:PASSWORD@:8443 -L=http://:8988"
+# gost runs in this container's network namespace, so its outbound traffic
+# follows the VPN default route (tun0) - no -F forwarder is needed.
+GOST_LISTENERS=${GOST_LISTENERS:-"-L=http://:8988"}
 
 # Save pre-VPN routing info
 DEFAULT_GW=$(ip route | awk '/^default/{print $3; exit}')
@@ -88,8 +94,39 @@ run () {
   fi
 }
 
-until (run); do
-  echo "openconnect exited. Restarting process in 60 seconds…" >&2
-  sleep 60
-done
+# Wait until the VPN tunnel exists before exposing the proxies, otherwise
+# traffic would silently leak out directly (the pre-VPN default route).
+wait_for_tun() {
+  echo "Waiting for VPN tunnel before starting gost..."
+  i=0
+  while [ "$i" -lt 300 ]; do
+    if ip route 2>/dev/null | grep -q 'dev tun0'; then
+      echo "VPN tunnel is up (after ~$((i * 2))s)"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 2
+  done
+  echo "WARNING: tun0 still down after 600s - starting gost anyway (traffic may leak!)" >&2
+  return 1
+}
+
+# openconnect runs in the background so its restart loop never blocks gost
+(
+  until (run); do
+    echo "openconnect exited. Restarting process in 60 seconds…" >&2
+    sleep 60
+  done
+) &
+
+wait_for_tun
+
+# Start gost proxy
+if [ -n "${GOST_LISTENERS}" ]; then
+  echo "Starting gost: ${GOST_LISTENERS}"
+  /usr/local/bin/gost ${GOST_LISTENERS} &
+fi
+
+# Stay in the foreground as PID 1 and reap children
+wait
 

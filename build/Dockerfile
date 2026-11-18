@@ -41,7 +41,7 @@ RUN apt-get update && \
 # Copy entrypoint script and set permissions
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-# Expose ports for gost and openconnect
-EXPOSE 8988
+# Exposed ports: internal gost listeners (override with GOST_LISTENERS)
+EXPOSE 8988 8887 8443
 # Set entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
